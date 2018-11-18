@@ -370,7 +370,7 @@ All=estimand
   }
   
   
-# stop here and got to RMatchLoop code
+#--------stop here and got to RMatchLoop code
   
   
   if (version == "fast" | version == "standard") {
@@ -424,17 +424,17 @@ All=estimand
     class(z) <- "Match"
     return(z)
   }
-  indx <- cbind(ret$art.data[, 1], ret$art.data[, 2], ret$W)
+  indx <- cbind(ret$art.data[, 1], ret$art.data[, 2], ret$W) # index treated,index ctrl, weights (for treated only?)
   index.treated <- indx[, 1]
   index.control <- indx[, 2]
   weights <- indx[, 3]
   sum.caliper.drops <- ret$sum.caliper.drops
   indx <- as.matrix(cbind(index.treated, index.control))
-  if (estimand == 0) {
+  if (estimand == 0) {  # ATT
     index.treated <- indx[, 1]
     index.control <- indx[, 2]
   }
-  else if (estimand == 1) {
+  else if (estimand == 1) { # ATE
     tmp.index.treated <- indx[, 1]
     tmp.index.control <- indx[, 2]
     tl <- length(tmp.index.treated)
@@ -452,20 +452,22 @@ All=estimand
       }
     }
   }
-  else if (estimand == 2) {
+  else if (estimand == 2) { #ATC
     index.treated <- indx[, 2]
     index.control <- indx[, 1]
   }
+  
+  # output data stored in mdata
   mdata <- list()
-  mdata$Y <- c(Y[index.treated], Y[index.control])
+  mdata$Y <- c(Y[index.treated], Y[index.control]) 
   mdata$Tr <- c(Tr[index.treated], Tr[index.control])
   mdata$X <- rbind(X[index.treated, ], X[index.control, ])
   mdata$orig.weighted.treated.nobs <- orig.weighted.treated.nobs
-  mest <- sum((Y[index.treated] - Y[index.control]) * weights)/sum(weights)
-  v1 <- Y[index.treated] - Y[index.control]
+  mest <- sum((Y[index.treated] - Y[index.control]) * weights)/sum(weights) # un-adjusted  mean est
+  v1 <- Y[index.treated] - Y[index.control] 
   varest <- sum(((v1 - mest)^2) * weights)/(sum(weights) * 
                                               sum(weights))
-  se.standard <- sqrt(varest)
+  se.standard <- sqrt(varest) # regular se
   wnobs <- sum(weights)
   if (estimand == 0) {
     actual.drops <- orig.weighted.treated.nobs - wnobs
