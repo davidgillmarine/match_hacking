@@ -1,5 +1,5 @@
 #### - Post matching
-# indx contains the returned values in each column:
+# MatchLoopC.indx contains the returned values in each column:
 # 1) matched treated index
 # 2) matched ctrl(s) index
 # 3) weights
@@ -8,25 +8,47 @@
 # 6) caliper drops
 # not sure what is the difference between cols 1 and 4, 2 and 5.
 
-indx <- cbind(match.test$index.treated,
-              match.test$index.control,
-              match.test$weights,
-              match.test$index.treated,
-              match.test$index.control)
+
+RMatchLoop_test <- function (id.var,MatchLoopC.indx,Y = Y, Tr = Tr, X = X, Z = Z, V, All = estimand, M=M,
+                             BiasAdj = BiasAdj, Var.calc = Var.calc, weight = weight, SAMPLE = SAMPLE, 
+                             ccc = ccc, version = version, ecaliper = NULL, exact = NULL, 
+                             caliper = NULL, restrict = NULL, 
+                             replace = TRUE, ties = TRUE,
+                             MatchbyAI = FALSE) 
+{
+  N <- nrow(X)
+  Kx <- ncol(X)
+  Kz <- ncol(Z)
+  iot.t <- Tr * weight
+  iot.c <- 1 - Tr
+  
+  indx <- MatchLoopC.indx
 # if no matches returned?
-if (indx[1, 1] == 0) {  
-  ret <- list()
-  ret$valid <- 0
-  return(ret)
-}
-
+  # if (indx[1, 1] == 0) {
+  #   ret <- list()
+  #   ret$valid <- 0
+  #   if (caliperflag) {
+  #     ret$sum.caliper.drops <- indx[1, 6]
+  #   }
+  #   else {
+  #     ret$sum.caliper.drops <- 0
+  #   }
+  #   return(ret)
+  # }
 # only for ATC, switch around Tr and Ctrls  
-if (All == 2) {    
-  foo <- indx[, 5]
-  indx[, 5] <- indx[, 4]
-  indx[, 4] <- foo
-}
-
+  # if (All == 2) {
+  #   foo <- indx[, 5]
+  #   indx[, 5] <- indx[, 4]
+  #   indx[, 4] <- foo
+  # }
+# for calipers (only necessary if VarCalc !=0)
+  # if (caliperflag) {
+  #   sum.caliper.drops <- indx[1, 6]
+  # }
+  # else {
+  #   sum.caliper.drops <- 0
+  # }
+  
 I <- indx[, 1] # matched treated index
 IT <- Tr[indx[, 1]] # matched treatment indicator values (0/1s; generally all 1s, length=indx). perhaps neessary for ATC
 IM <- indx[, 2] # matched ctrl(s) index
@@ -109,21 +131,22 @@ est.func <- function(N, All, Tr, indx, weight, BiasAdj,
               KKcount = KKcount))
 }
 
-  if (version == "standard" & BiasAdj == 0) {
-    ret <- .Call("EstFuncC", as.integer(N), as.integer(All),
-                 as.integer(nrow(indx)), as.double(Y), as.double(Tr),
-                 as.double(weight), as.double(indx), PACKAGE = "Matching")
-    YCAUS <- ret[, 1]
-    Kcount <- ret[, 2]
-    KKcount <- ret[, 3]
-  } else if (version == "standard") {
-    ret.est <- est.func(N = N, All = All, Tr = Tr, indx = indx, 
-                        weight = weight, BiasAdj = BiasAdj, Kz = Kz)
-    YCAUS <- ret.est$YCAUS 
-    ZCAUS <- ret.est$ZCAUS
-    Kcount <- ret.est$Kcount
-    KKcount <- ret.est$KKcount
-   }
+if (version == "standard" & BiasAdj == 0) {
+  ret <- .Call("EstFuncC", as.integer(N), as.integer(All), 
+               as.integer(nrow(indx)), as.double(Y), as.double(Tr), 
+               as.double(weight), as.double(indx), PACKAGE = "Matching")
+  YCAUS <- ret[, 1]
+  Kcount <- ret[, 2]
+  KKcount <- ret[, 3]
+}
+else if (version == "standard") {
+  ret.est <- est.func(N = N, All = All, Tr = Tr, indx = indx, 
+                      weight = weight, BiasAdj = BiasAdj, Kz = Kz)
+  YCAUS <- ret.est$YCAUS
+  ZCAUS <- ret.est$ZCAUS
+  Kcount <- ret.est$Kcount
+  KKcount <- ret.est$KKcount
+}
 # returns list of 4 values:
 # 1) YCAUS: treatment effect 
 # 2) ZCAUS: the adjusted difference in covariates (if BiasAdj==T)
@@ -244,14 +267,14 @@ if (BiasAdj == 1) {
     Tau.i <- Yt.adj - Yc.adj
   }
 art.data <- cbind(I, IM) # index of treated and ctrls
-# if (Var.calc > 0) { # if Var.calc supplied
-#   Sigs <- VarCalcMatchC(N = N, xvars = ncol(X), Var.calc = Var.calc, 
-#                         cdd = cdd, caliperflag = caliperflag, ww = ww, Tr = Tr, 
-#                         Xmod = s1$X, CaliperVec = use.ecaliper, Xorig = X.orig, 
-#                         restrict.trigger = restrict.trigger, restrict = restrict, 
-#                         DiagWeightMatrixFlag = DiagWeightMatrixFlag, Y = Y, 
-#                         weightFlag = weights.flag, weight = weight)
-# }
+if (Var.calc > 0) { # if Var.calc supplied
+  Sigs <- VarCalcMatchC(N = N, xvars = ncol(X), Var.calc = Var.calc,
+                        cdd = cdd, caliperflag = caliperflag, ww = ww, Tr = Tr,
+                        Xmod = s1$X, CaliperVec = use.ecaliper, Xorig = X.orig,
+                        restrict.trigger = restrict.trigger, restrict = restrict,
+                        DiagWeightMatrixFlag = DiagWeightMatrixFlag, Y = Y,
+                        weightFlag = weights.flag, weight = weight)
+}
 est <- t(W) %*% Tau.i/sum(W) # avg estimate 
 if (version == "standard") {
   if (Var.calc == 0) {
@@ -294,7 +317,14 @@ if (version == "standard") {
   se = NULL
   se.cond = NULL
 }
-
+# if (!MatchbyAI) {
+#   return(list(est = est, se = se, se.cond = se.cond, W = W, art.data = art.data, 
+#               MatchLoopC = MatchLoopC.indx))
+# }
+# else {
+#   if (Var.calc == 0) 
+#     Sigs <- NULL
+# }  
 index.treated <- indx[, 1]
 index.control <- indx[, 2]
 weights <- indx[, 3]
@@ -304,7 +334,12 @@ varest <- sum(((v1 - mest)^2) * weights)/(sum(weights) *
                                             sum(weights))
 se.standard <- sqrt(varest)
 wnobs <- sum(weights)
-return(m.out <- list(est = est, est.noadj = mest, se = se, se.cond = se.cond, se.standard = se.standard,
-                     W = W,art.data = art.data, index.treated = index.treated, index.control = index.control, 
-                     YCAUS = YCAUS, Kcount = Kcount, KKcount = KKcount, Sigs = Sigs))
-       
+t.stat = est/se
+p.val = (1 - pnorm(abs(est/se))) * 2
+
+ind.est <- data.frame(cbind(id.var[index.treated],id.var[index.control],Tau.i))
+
+return(list(est = est, est.noadj = mest, se = se, se.standard = se.standard,se.cond = se.cond, W = W,  art.data = art.data, 
+            MatchLoopC = MatchLoopC.indx, YCAUS = YCAUS, Kcount = Kcount, index.treated=index.treated,index.control=index.control,
+            KKcount = KKcount, Sigs = Sigs, Tau=Tau.i,ind.est=ind.est, t.stat=t.stat,p.val=p.val))
+}

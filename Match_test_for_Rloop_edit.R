@@ -1,5 +1,9 @@
+setwd("C:/Users/dag71/Dropbox/data/analysis/R code/match_hacking/git")
 library(Matching)
+library(rio)
 library(dplyr)
+
+# Test with default dataset
 data(lalonde)
 names(lalonde)
 X <- lalonde %>% 
@@ -7,33 +11,84 @@ X <- lalonde %>%
   mutate_at(vars(re74:u75),funs(./1000))
 Y <- lalonde$re78/1000
 Tr <- lalonde$treat
-M <- 1
+M <- 2
 Z <- X
-N <- nrow(X)
-Kx <- ncol(X)
-Kz <- ncol(Z)
-estimand <- 0
-All <- estimand
+Z <- X
+estimand <- 0 # ( 0 = ATT)
 version <-  "standard"
-BiasAdj <- 1
-weights <- rep(1,length(Y))
-weight <-  weights
-ccc <- 1e-05 # tolerance
+BiasAdj <- T
+weight <- as.double(rep(1,length(Y)))
+ccc <- 1e-05 # default tolerance 
 Var.calc <- 0
-iot.t <- Tr * weight
-iot.c <- 1 - Tr
 SAMPLE <- 0
+id.var <- seq(1:nrow(lalonde))
 
 #run match
-match.test<-Matching::Match(Y=Y, Tr,X, M=M, replace=T, ties=T, BiasAdjust = T)
-setwd("C:/Users/david/Dropbox/data/analysis/R code/match_hacking/git")
-source("C:/Users/david/Dropbox/data/analysis/R code/match_hacking/git/Rloop_edit.R")
-match.test$est.noadj;match.test$est;match.test$se;match.test$se.standard;match.test$se.cond
-m.out$est.noadj;m.out$est;m.out$se;m.out$se.standard;m.out$se.cond
+match.test<-Matching::Match(Y=Y, Tr,X, M=M, replace=T, ties=T, BiasAdjust = BiasAdj, weights = weight,tolerance = ccc)
+source("C:/Users/dag71/Dropbox/data/analysis/R code/match_hacking/git/Rloop_edit.R")
+
+m.out <- RMatchLoop_test(id.var=id.var,MatchLoopC.indx = match.test$MatchLoopC,Y = Y, Tr = Tr, X = X, Z = Z, 
+                All = estimand, M = M, BiasAdj = BiasAdj, 
+                Var.calc = Var.calc, weight = weight, SAMPLE = SAMPLE, 
+                ccc = ccc, version = version)
+
+# compare output
+data.frame(func=c("Match output","Custom output"),
+           est.noadj=c(match.test$est.noadj,m.out$est.noadj),
+           est=c(match.test$est,m.out$est),
+           AI.se=c(match.test$se,m.out$se),
+           se.standard=c(match.test$se.standard,m.out$se.standard),
+           se.cond=c(match.test$se.cond,m.out$se.cond))
 summary(match.test)
-#summary(X);summary(Y)
+paste0("Estimate: ",round(m.out$est,6));paste0("AI SE: ",round(m.out$se,6));paste0("t.stat: ",round(m.out$t.stat,6));paste0("p.val: ",round(m.out$p.val,6))
 
+# Get individual bias adjusted ATTs (if unweighted)
+est <- m.out$ind.est
+
+
+##-------- Test with some real data
+fish.dat <- import("fish_data_test.csv")
+
+X <- fish.dat %>% 
+  dplyr::select(SiteLat,SiteLong,Depth,EXPO,SHORE,MRKT,HPOP,SurveyYear,sstmin,CHLORO,DepthErr2,Exp_Error,
+                Habitat,ISO3,Ecoregion,Source) %>% 
+  mutate_at(vars(Habitat,ISO3,Ecoregion,Source),funs(as.integer(as.factor(.))))
+Y <- log(fish.dat$sum_biomass)
+Tr <- fish.dat$INSIDE_AFT_GIS
+M <- 5
+Z <- X
+estimand <- 0 # ( 0 = ATT)
+version <-  "standard"
+BiasAdj <- T
+weight <- as.double(rep(1,length(Y)))
+ccc <- 1e-05 # default tolerance 
+Var.calc <- 0
+SAMPLE <- 0
+id.var <- fish.dat$ECOID
+#X <- X[,1:7]
+
+#run match
+match.test<-Matching::Match(Y=Y, Tr,X, M=M, replace=T, ties=T, BiasAdjust = BiasAdj, weights = weight,tolerance = ccc)
+source("C:/Users/dag71/Dropbox/data/analysis/R code/match_hacking/git/Rloop_edit.R")
+
+m.out <- RMatchLoop_test(id.var=id.var,MatchLoopC.indx = match.test$MatchLoopC,Y = Y, Tr = Tr, X = X, Z = Z, 
+                All = estimand, M = M, BiasAdj = BiasAdj,
+                Var.calc = Var.calc, weight = weight, SAMPLE = SAMPLE, 
+                ccc = ccc, version = version)
+# compare output
+data.frame(func=c("Match output","Custom output"),
+           est.noadj=c(match.test$est.noadj,m.out$est.noadj),
+           est=c(match.test$est,m.out$est),
+           AI.se=c(match.test$se,m.out$se),
+           se.standard=c(match.test$se.standard,m.out$se.standard),
+           se.cond=c(match.test$se.cond,m.out$se.cond))
 summary(match.test)
-#summary(X);summary(Y)
+paste0("Estimate: ",round(m.out$est,6));paste0("AI SE: ",round(m.out$se,6));paste0("t.stat: ",round(m.out$t.stat,6));paste0("p.val: ",round(m.out$p.val,6))
 
 
+# Get individual bias adjusted ATTs (if unweighted)
+est <- m.out$ind.est
+
+
+source("C:/Users/dag71/Dropbox/data/analysis/R code/match_hacking/git/function_att_significance.R")
+att.significance(match.test)
