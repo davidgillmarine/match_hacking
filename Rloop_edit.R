@@ -17,7 +17,6 @@ RMatchLoop_test <- function (id.var,MatchLoopC.indx,Y = Y, Tr = Tr, X = X, Z = Z
                              MatchbyAI = FALSE) 
 {
   N <- nrow(X)
-  Kx <- ncol(X)
   Kz <- ncol(Z)
   iot.t <- Tr * weight
   iot.c <- 1 - Tr
@@ -52,9 +51,10 @@ RMatchLoop_test <- function (id.var,MatchLoopC.indx,Y = Y, Tr = Tr, X = X, Z = Z
 I <- indx[, 1] # matched treated index
 IT <- Tr[indx[, 1]] # matched treatment indicator values (0/1s; generally all 1s, length=indx). perhaps neessary for ATC
 IM <- indx[, 2] # matched ctrl(s) index
-Yt <- Y[indx[, 4]] # matched treated outcome
-Yc <- Y[indx[, 5]] # matched ctrl outcome
+Yt <- Y[indx[, 4]] # matched treated outcome (don't know why this duplicates col 1 [using lalonde dataset])
+Yc <- Y[indx[, 5]] # matched ctrl outcome (don't know why this duplicates col 2 [using lalonde dataset])
 W <- indx[, 3] # weights
+
 if (BiasAdj == 1 & sum(W) < ncol(Z)) {
   warning("Fewer (weighted) matches than variables in 'Z': BiasAdjust set to FALSE")
   BiasAdj = 0
@@ -67,11 +67,13 @@ if (BiasAdj == 1) {
   Zt <- Z[indx[, 4], ] # matched treated covariates (for bias adj)
   Zc <- Z[indx[, 5], ] # matched ctrl covariates (for bias adj)
 }
+
+
 est.func <- function(N, All, Tr, indx, weight, BiasAdj, 
                      Kz) {
-  Kcount <- as.matrix(rep(0, N))   # empty matrix for weights
-  KKcount <- as.matrix(rep(0, N))  # empty matrix (vector) for weights^2
-  YCAUS <- matrix(0, nrow = N, ncol = 1)  # empty matrix for 
+  Kcount <- as.matrix(rep(0, N))   # empty matrix for combined weights
+  KKcount <- as.matrix(rep(0, N))  # empty matrix (vector) for combined  weights^2
+  YCAUS <- matrix(0, nrow = N, ncol = 1)  # empty matrix for adjusted Y??
   if (BiasAdj == 1) {
     ZCAUS <- matrix(0, nrow = N, ncol = Kz)   # empty matrix for bias adj covariates
   }
@@ -80,18 +82,18 @@ est.func <- function(N, All, Tr, indx, weight, BiasAdj,
   }
   for (i in 1:N) {
     if ((Tr[i] == 1 & All != 1) | All == 1) {  # for each treated value
-      foo.indx <- indx[, 1] == i # T/F vector to locate i in matched treated list
+      foo.indx <- indx[, 1] == i # T/F vector to locate i in matched treated indices
       foo.indx2 <- foo.indx # back up foo.indx
       sum.foo <- sum(foo.indx) # number of times i is matched
       if (sum.foo < 1) # if 1 is not matched
         next   # stop loop and skip to the next one (i.e. ignores obs not incl in match)
-      # foo = long way to index matched ctrl (T/F)
+      # foo = long way to index matched ctrl as T/F
       foo <- rep(FALSE, N)
       foo.indx <- indx[foo.indx, 2] # index for ctrls matched to i 
       foo[foo.indx] <- rep(TRUE, sum.foo) # T/F vector for location of matched ctrl obs 
       
       Kcount <- Kcount + weight[i] * weight * foo/sum(foo * 
-                                                        weight) # weights for ctrl matches for i times weight - eq 2
+                                                        weight) # (weights for ctrl matches for i ) X (weight for [i])/sum(weight [i]) - eq 2
       KKcount <- KKcount + weight[i] * weight * weight * 
         foo/(sum(foo * weight) * sum(foo * weight)) # weights^2 for ctrl matches for i times weight[i]
       foo.indx2.2 <- indx[foo.indx2, 2] # index for ctrl matched to obs i (same as foo.indx?? line 222)
@@ -148,7 +150,7 @@ else if (version == "standard") {
   KKcount <- ret.est$KKcount
 }
 # returns list of 4 values:
-# 1) YCAUS: treatment effect 
+# 1) YCAUS: treatment effect(adjusted in some way) 
 # 2) ZCAUS: the adjusted difference in covariates (if BiasAdj==T)
 # 3) Kcount: tr weights X ctrl weights (accounting for supplied tr weights and # times matched)
 # 4) KKcount: tr weights X ctrl weights^2 (accounting for supplied tr weights and # times matched)
@@ -156,8 +158,8 @@ else if (version == "standard") {
 
 if (All != 1) {
   # If all Tr==1 then these are the same as  above
-  I <- as.matrix(I[IT == 1])  # matched treated index values ( IT <- Tr[indx[, 1]] ) . 
-  IT <- as.matrix(IT[IT == 1])  # matched treated index where Tr=1 (does nothing if all IT=1; maybe necessary for ATC?)
+  I <- as.matrix(I[IT == 1])   # matched treated index values ( IT <- Tr[indx[, 1]] ) . 
+  IT <- as.matrix(IT[IT == 1]) # matched treated index where Tr=1 (does nothing if all IT=1; maybe necessary for ATC?)
   Yc <- as.matrix(Yc[IT == 1]) #  matched ctrl outcome where Tr=1
   Yt <- as.matrix(Yt[IT == 1]) #  matched treat outcome where Tr=1
   W <- as.matrix(W[IT == 1]) # weights where Tr=1
@@ -216,7 +218,7 @@ if (BiasAdj == 1) {
   }
 }
 if (BiasAdj == 1) {
-  # same as above, but for controls (used for ATT)
+  # for controls (used for ATT)
   NNc <- nrow(Z) # length of orig covariates 
   ZZc <- cbind(matrix(1, nrow = NNc, ncol = 1), Z) # add a column of all 1s
   Kx <- ncol(ZZc) # covariates + 1
@@ -275,7 +277,9 @@ if (Var.calc > 0) { # if Var.calc supplied
                         DiagWeightMatrixFlag = DiagWeightMatrixFlag, Y = Y,
                         weightFlag = weights.flag, weight = weight)
 }
-est <- t(W) %*% Tau.i/sum(W) # avg estimate 
+est <- t(W) %*% Tau.i/sum(W) # avg AT(T,E,C) estimate 
+
+# variance 
 if (version == "standard") {
   if (Var.calc == 0) {
     eps <- Tau.i - as.double(est)   # est - mean(est) eq 8
@@ -325,6 +329,8 @@ if (version == "standard") {
 #   if (Var.calc == 0) 
 #     Sigs <- NULL
 # }  
+
+# output variables
 index.treated <- indx[, 1]
 index.control <- indx[, 2]
 weights <- indx[, 3]
@@ -337,7 +343,7 @@ wnobs <- sum(weights)
 t.stat = est/se
 p.val = (1 - pnorm(abs(est/se))) * 2
 
-ind.est <- data.frame(cbind(id.var[index.treated],id.var[index.control],Tau.i))
+ind.est <- data.frame(id.treat=id.var[index.treated],id.ctrl=id.var[index.control],est=Tau.i,weight=W)
 
 return(list(est = est, est.noadj = mest, se = se, se.standard = se.standard,se.cond = se.cond, W = W,  art.data = art.data, 
             MatchLoopC = MatchLoopC.indx, YCAUS = YCAUS, Kcount = Kcount, index.treated=index.treated,index.control=index.control,

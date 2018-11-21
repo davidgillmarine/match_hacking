@@ -13,7 +13,6 @@ Y <- lalonde$re78/1000
 Tr <- lalonde$treat
 M <- 2
 Z <- X
-Z <- X
 estimand <- 0 # ( 0 = ATT)
 version <-  "standard"
 BiasAdj <- T
@@ -25,12 +24,12 @@ id.var <- seq(1:nrow(lalonde))
 
 #run match
 match.test<-Matching::Match(Y=Y, Tr,X, M=M, replace=T, ties=T, BiasAdjust = BiasAdj, weights = weight,tolerance = ccc)
-source("C:/Users/dag71/Dropbox/data/analysis/R code/match_hacking/git/Rloop_edit.R")
+source("Rloop_edit.R")
 
-m.out <- RMatchLoop_test(id.var=id.var,MatchLoopC.indx = match.test$MatchLoopC,Y = Y, Tr = Tr, X = X, Z = Z, 
-                All = estimand, M = M, BiasAdj = BiasAdj, 
-                Var.calc = Var.calc, weight = weight, SAMPLE = SAMPLE, 
-                ccc = ccc, version = version)
+m.out <- RMatchLoop_test(id.var=id.var,MatchLoopC.indx = match.test$MatchLoopC,
+                         Y = Y, Tr = Tr, X = X, Z = Z,All = estimand, M = M, BiasAdj = BiasAdj, 
+                         Var.calc = Var.calc, weight = weight, SAMPLE = SAMPLE, 
+                         ccc = ccc, version = version)
 
 # compare output
 data.frame(func=c("Match output","Custom output"),
@@ -43,8 +42,8 @@ summary(match.test)
 paste0("Estimate: ",round(m.out$est,6));paste0("AI SE: ",round(m.out$se,6));paste0("t.stat: ",round(m.out$t.stat,6));paste0("p.val: ",round(m.out$p.val,6))
 
 # Get individual bias adjusted ATTs (if unweighted)
-est <- m.out$ind.est
-
+est <- m.out$ind.est 
+# sum((est$est*est$weight)/sum(est$weight))  # should be the same as match.test$est
 
 ##-------- Test with some real data
 fish.dat <- import("fish_data_test.csv")
@@ -69,12 +68,13 @@ id.var <- fish.dat$ECOID
 
 #run match
 match.test<-Matching::Match(Y=Y, Tr,X, M=M, replace=T, ties=T, BiasAdjust = BiasAdj, weights = weight,tolerance = ccc)
-source("C:/Users/dag71/Dropbox/data/analysis/R code/match_hacking/git/Rloop_edit.R")
+source("Rloop_edit.R")
 
-m.out <- RMatchLoop_test(id.var=id.var,MatchLoopC.indx = match.test$MatchLoopC,Y = Y, Tr = Tr, X = X, Z = Z, 
-                All = estimand, M = M, BiasAdj = BiasAdj,
-                Var.calc = Var.calc, weight = weight, SAMPLE = SAMPLE, 
-                ccc = ccc, version = version)
+m.out <- RMatchLoop_test(id.var=id.var,MatchLoopC.indx = match.test$MatchLoopC,
+                         Y = Y, Tr = Tr, X = X, Z = Z,All = estimand, M = M, BiasAdj = BiasAdj, 
+                         Var.calc = Var.calc, weight = weight, SAMPLE = SAMPLE, 
+                         ccc = ccc, version = version)
+
 # compare output
 data.frame(func=c("Match output","Custom output"),
            est.noadj=c(match.test$est.noadj,m.out$est.noadj),
@@ -85,10 +85,10 @@ data.frame(func=c("Match output","Custom output"),
 summary(match.test)
 paste0("Estimate: ",round(m.out$est,6));paste0("AI SE: ",round(m.out$se,6));paste0("t.stat: ",round(m.out$t.stat,6));paste0("p.val: ",round(m.out$p.val,6))
 
-
 # Get individual bias adjusted ATTs (if unweighted)
-est <- m.out$ind.est
+est <- m.out$ind.est 
+# sum((est$est*est$weight)/sum(est$weight))  # should be the same as match.test$est
 
 
-source("C:/Users/dag71/Dropbox/data/analysis/R code/match_hacking/git/function_att_significance.R")
-att.significance(match.test)
+# source("function_att_significance.R")
+# att.significance(match.test)
